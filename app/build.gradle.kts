@@ -12,7 +12,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "TV 0.1.0"
+        versionName = "TV 1.0.0"
     }
 
     compileOptions {
@@ -21,9 +21,22 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
+    signingConfigs {
+        create("release") {
+            val storeFilePath = System.getenv("LICHAI_TV_KEYSTORE_PATH")
+            if (!storeFilePath.isNullOrBlank()) {
+                storeFile = file(storeFilePath)
+                storePassword = System.getenv("LICHAI_TV_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("LICHAI_TV_KEY_ALIAS")
+                keyPassword = System.getenv("LICHAI_TV_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
