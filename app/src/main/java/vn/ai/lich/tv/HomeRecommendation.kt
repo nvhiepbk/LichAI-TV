@@ -29,10 +29,9 @@ object HomeRecommendation {
                     .build()
                 channelId = helper.publishChannel(channel)
                 prefs.edit().putLong(CHANNEL_ID, channelId).apply()
-                helper.requestChannelBrowsable(channelId)
             }
             val today = LocalDate.now()
-            val lunar = VietnameseLunar.solarToLunar(today)
+            val lunar = VietnameseLunar.fromSolar(today)
             val intent = Intent(context, MainActivity::class.java)
             val program = PreviewProgram.Builder()
                 .setChannelId(channelId)

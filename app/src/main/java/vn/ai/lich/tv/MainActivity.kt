@@ -70,8 +70,8 @@ class MainActivity : Activity() {
 
     private fun renderDay() {
         dayPanel.removeAllViews()
-        val lunar = VietnameseLunar.solarToLunar(selected)
-        val jd = VietnameseLunar.jdFromDate(selected.dayOfMonth, selected.monthValue, selected.year)
+        val lunar = VietnameseLunar.fromSolar(selected)
+        val jd = lunar.julianDay
         val feng = TVFengShui.forJulianDay(jd)
         val weekday = selected.format(DateTimeFormatter.ofPattern("EEEE", vi)).replaceFirstChar { it.uppercase(vi) }
         dayPanel.addView(tv("LỊCH AI · LỊCH NGÀY", 17f, true).apply { setTextColor(Color.rgb(255, 209, 102)) })
@@ -98,7 +98,7 @@ class MainActivity : Activity() {
         repeat(offset) { grid.addView(Space(this), cellParams()) }
         for (d in 1..shownMonth.lengthOfMonth()) {
             val date = shownMonth.atDay(d)
-            val lunar = VietnameseLunar.solarToLunar(date)
+            val lunar = VietnameseLunar.fromSolar(date)
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; isFocusable = true; isClickable = true
                 setPadding(dp(4), dp(4), dp(4), dp(4)); background = CellBackground.normal()
@@ -114,8 +114,8 @@ class MainActivity : Activity() {
     }
 
     private fun showDetail(date: LocalDate) {
-        val lunar = VietnameseLunar.solarToLunar(date)
-        val jd = VietnameseLunar.jdFromDate(date.dayOfMonth, date.monthValue, date.year)
+        val lunar = VietnameseLunar.fromSolar(date)
+        val jd = lunar.julianDay
         val feng = TVFengShui.forJulianDay(jd)
         val text = buildString {
             append("Dương lịch: ${date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}\n")
