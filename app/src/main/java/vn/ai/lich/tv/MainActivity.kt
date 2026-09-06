@@ -2,9 +2,7 @@ package vn.ai.lich.tv
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.content.Intent
 import android.graphics.Color
-import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -29,7 +27,7 @@ class MainActivity : Activity() {
     private val worker = Executors.newSingleThreadExecutor()
     private var monthGeneration = 0
 
-    private data class DayData(val date: LocalDate, val lunar: VietnameseLunar.LunarDate)
+    private data class DayData(val date: LocalDate, val lunar: LunarDate)
 
     private val returnToday = Runnable { goToday() }
 
@@ -171,13 +169,20 @@ class MainActivity : Activity() {
             append("Giờ hoàng đạo: ${feng.goodHours.joinToString(" · ")}\n\n")
             append("Hướng tốt: ${listOfNotNull(feng.bestDirection, feng.alternativeDirection).distinct().joinToString(" · ")}")
         }
+        val items = arrayOf("📋 Chi tiết ngày")
         AlertDialog.Builder(this)
-            .setTitle("Chi tiết ngày ${date.dayOfMonth}/${date.monthValue}")
-            .setMessage(text)
-            .setPositiveButton("Mở chi tiết đầy đủ") { _, _ ->
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://lich.ai.vn/")))
+            .setTitle("${date.dayOfMonth}/${date.monthValue}/${date.year} · ${lunar.day}/${lunar.month} Âm lịch")
+            .setItems(items) { _, which ->
+                if (which == 0) {
+                    AlertDialog.Builder(this)
+                        .setTitle("Chi tiết ngày ${date.dayOfMonth}/${date.monthValue}")
+                        .setMessage(text)
+                        .setPositiveButton("Quay lại", null)
+                        .show()
+                }
             }
-            .setNegativeButton("Quay lại", null).show()
+            .setNegativeButton("Đóng", null)
+            .show()
     }
 
     private fun changeMonth(delta: Long) {
