@@ -11,8 +11,8 @@ android {
         applicationId = "vn.ai.lich.tv"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "TV 1.0.0"
+        versionCode = 2
+        versionName = "TV 1.1.0"
     }
 
     compileOptions {
