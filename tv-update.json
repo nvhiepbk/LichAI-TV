@@ -6,8 +6,11 @@
     "Lịch tháng và chi tiết ngày Native tối ưu cho Android TV",
     "Sự kiện văn hóa và lịch sử có nội dung đầy đủ",
     "Văn khấn tách từng bài, có chuẩn bị và lễ vật",
-    "Điều khiển hoàn toàn bằng remote D-pad"
+    "Điều khiển hoàn toàn bằng remote D-pad",
+    "Có Trung tâm kiểm tra cập nhật"
   ],
   "downloaderCode": "",
-  "downloadPage": "https://lich.ai.vn/download"
+  "downloadPage": "https://lich.ai.vn/download",
+  "apkUrl": "https://github.com/nvhiepbk/LichAI-TV/releases/download/v1.1.0/LichAI-TV-v1.1.0.apk",
+  "stableApkUrl": "https://lich.ai.vn/download/tv"
 }
