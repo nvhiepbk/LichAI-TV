@@ -142,4 +142,11 @@ object VietnameseLunar {
 
     fun yearCanChi(lunarYear: Int): String =
         "${stems[(lunarYear + 6).mod(10)]} ${branches[(lunarYear + 8).mod(12)]}"
+    private val napAm30 = arrayOf("Hải Trung Kim","Lư Trung Hỏa","Đại Lâm Mộc","Lộ Bàng Thổ","Kiếm Phong Kim","Sơn Đầu Hỏa","Giản Hạ Thủy","Thành Đầu Thổ","Bạch Lạp Kim","Dương Liễu Mộc","Tuyền Trung Thủy","Ốc Thượng Thổ","Tích Lịch Hỏa","Tùng Bách Mộc","Trường Lưu Thủy","Sa Trung Kim","Sơn Hạ Hỏa","Bình Địa Mộc","Bích Thượng Thổ","Kim Bạch Kim","Phúc Đăng Hỏa","Thiên Hà Thủy","Đại Trạch Thổ","Thoa Xuyến Kim","Tang Đố Mộc","Đại Khê Thủy","Sa Trung Thổ","Thiên Thượng Hỏa","Thạch Lựu Mộc","Đại Hải Thủy")
+    private val tietKhiNames = arrayOf("Xuân Phân","Thanh Minh","Cốc Vũ","Lập Hạ","Tiểu Mãn","Mang Chủng","Hạ Chí","Tiểu Thử","Đại Thử","Lập Thu","Xử Thử","Bạch Lộ","Thu Phân","Hàn Lộ","Sương Giáng","Lập Đông","Tiểu Tuyết","Đại Tuyết","Đông Chí","Tiểu Hàn","Đại Hàn","Lập Xuân","Vũ Thủy","Kinh Trập")
+    fun monthCanChi(month:Int,year:Int):String = "${stems[(year*12+month+3).mod(10)]} ${branches[(month+1).mod(12)]}"
+    fun napAm(jd:Int):String { val ci=(jd+9).mod(10); val hi=(jd+1).mod(12); val idx=(0 until 60).firstOrNull{it%10==ci&&it%12==hi}?:0; return napAm30[idx/2] }
+    fun tietKhi(date:LocalDate):String { val jd=jdFromDate(date.dayOfMonth,date.monthValue,date.year); val sector=floor(sunLongitude(jd-0.5-TZ/24.0)/PI*12).toInt().mod(24); return tietKhiNames[sector] }
+    fun dayChi(jd:Int):String = branches[(jd+1).mod(12)]
+
 }

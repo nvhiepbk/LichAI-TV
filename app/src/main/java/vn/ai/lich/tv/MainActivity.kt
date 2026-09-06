@@ -142,6 +142,9 @@ class MainActivity : Activity() {
                 setPadding(dp(4), dp(4), dp(4), dp(4)); background = CellBackground.normal()
                 addView(tv(data.date.dayOfMonth.toString(), 24f, true).apply { gravity = Gravity.CENTER })
                 addView(tv("${data.lunar.day}/${data.lunar.month}", 14f, false).apply { gravity = Gravity.CENTER; setTextColor(Color.rgb(255, 209, 102)) })
+                if (TVContent.events(this@MainActivity, data.date, data.lunar).isNotEmpty() || TVContent.rituals(this@MainActivity, data.date, data.lunar).isNotEmpty()) {
+                    addView(tv("●", 10f, true).apply { gravity = Gravity.CENTER; setTextColor(Color.rgb(255, 209, 102)) })
+                }
                 setOnFocusChangeListener { v, focused ->
                     v.background = if (focused) CellBackground.focused() else CellBackground.normal()
                     if (focused && selected != data.date) {
@@ -161,28 +164,84 @@ class MainActivity : Activity() {
 
     private fun showDetail(date: LocalDate) {
         val lunar = VietnameseLunar.fromSolar(date)
-        val feng = TVFengShui.forJulianDay(lunar.julianDay)
-        val text = buildString {
-            append("Dương lịch: ${date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))}\n")
-            append("Âm lịch: ${lunar.day}/${lunar.month}/${lunar.year}${if (lunar.leap) " nhuận" else ""}\n")
-            append("Năm: ${VietnameseLunar.yearCanChi(lunar.year)}\n\n")
-            append("Giờ hoàng đạo: ${feng.goodHours.joinToString(" · ")}\n\n")
-            append("Hướng tốt: ${listOfNotNull(feng.bestDirection, feng.alternativeDirection).distinct().joinToString(" · ")}")
+        val events = TVContent.events(this, date, lunar)
+        val historical = events.filter { it.category == "historical" }
+        val cultural = events.filter { it.category != "historical" }
+        val rituals = TVContent.rituals(this, date, lunar)
+        val labels = mutableListOf<String>()
+        val actions = mutableListOf<() -> Unit>()
+
+        labels += "📋 Chi tiết ngày"
+        actions += { showNativeDayDetail(date, lunar) }
+        if (cultural.isNotEmpty()) {
+            labels += "🏮 Sự kiện văn hóa (${cultural.size})"
+            actions += { showEvents("Sự kiện văn hóa", cultural) }
         }
-        val items = arrayOf("📋 Chi tiết ngày")
+        if (historical.isNotEmpty()) {
+            labels += "🏛️ Sự kiện lịch sử (${historical.size})"
+            actions += { showEvents("Sự kiện lịch sử", historical) }
+        }
+        if (rituals.isNotEmpty()) {
+            labels += "🙏 Văn khấn (${rituals.size})"
+            actions += { showRituals(date, lunar, rituals) }
+        }
+
         AlertDialog.Builder(this)
             .setTitle("${date.dayOfMonth}/${date.monthValue}/${date.year} · ${lunar.day}/${lunar.month} Âm lịch")
-            .setItems(items) { _, which ->
-                if (which == 0) {
-                    AlertDialog.Builder(this)
-                        .setTitle("Chi tiết ngày ${date.dayOfMonth}/${date.monthValue}")
-                        .setMessage(text)
-                        .setPositiveButton("Quay lại", null)
-                        .show()
-                }
-            }
-            .setNegativeButton("Đóng", null)
-            .show()
+            .setItems(labels.toTypedArray()) { _, which -> actions[which].invoke() }
+            .setNegativeButton("Đóng", null).show()
+    }
+
+    private fun showNativeDayDetail(date: LocalDate, lunar: LunarDate) {
+        val d = TVDayDetails.forDate(date, lunar)
+        val feng = TVFengShui.forJulianDay(lunar.julianDay)
+        val text = buildString {
+            append("DƯƠNG LỊCH\n${date.format(DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", vi))}\n\n")
+            append("ÂM LỊCH\n${lunar.day}/${lunar.month}/${lunar.year}${if (lunar.leap) " nhuận" else ""}\n\n")
+            append("CAN CHI\nNgày ${d.canChiDay}\nTháng ${d.canChiMonth}\nNăm ${d.canChiYear}\n\n")
+            append("NGŨ HÀNH · NẠP ÂM\n${d.napAm}\n\n")
+            append("TIẾT KHÍ\n${d.tietKhi}\n\n")
+            append("12 TRỰC\nTrực ${d.truc} — ${d.trucNote}\n\n")
+            append("28 TÚ\n${d.tu} — ${d.tuNote}\n\n")
+            append("GIỜ HOÀNG ĐẠO\n${feng.goodHours.joinToString(" · ")}\n\n")
+            append("HƯỚNG TỐT\n${listOfNotNull(feng.bestDirection, feng.alternativeDirection).distinct().joinToString(" · ")}")
+        }
+        showLongText("Chi tiết ngày ${date.dayOfMonth}/${date.monthValue}", text)
+    }
+
+    private fun showEvents(title: String, events: List<TVEvent>) {
+        if (events.size == 1) { showEvent(events.first()); return }
+        AlertDialog.Builder(this).setTitle(title).setItems(events.map { "${it.icon} ${it.title}".trim() }.toTypedArray()) { _, i -> showEvent(events[i]) }.setNegativeButton("Quay lại", null).show()
+    }
+
+    private fun showEvent(e: TVEvent) {
+        val text = buildString {
+            if (e.summary.isNotBlank()) append(e.summary.trim()).append("\n\n")
+            if (e.meaning.isNotBlank()) append("Ý nghĩa\n").append(e.meaning.trim())
+        }.trim()
+        showLongText("${e.icon} ${e.title}".trim(), text.ifBlank { "Thông tin sự kiện." })
+    }
+
+    private fun showRituals(date: LocalDate, lunar: LunarDate, rituals: List<TVRitual>) {
+        if (rituals.size == 1) { showRitual(rituals.first()); return }
+        AlertDialog.Builder(this).setTitle("Văn khấn").setItems(rituals.map { it.title }.toTypedArray()) { _, i -> showRitual(rituals[i]) }.setNegativeButton("Quay lại", null).show()
+    }
+
+    private fun showRitual(r: TVRitual) {
+        if (r.prayers.size == 1) { showPrayer(r.prayers.first()); return }
+        AlertDialog.Builder(this).setTitle(r.title).setMessage(r.summary).setItems(r.prayers.map { it.title }.toTypedArray()) { _, i -> showPrayer(r.prayers[i]) }.setNegativeButton("Quay lại", null).show()
+    }
+
+    private fun showPrayer(p: TVPrayer) {
+        val text = buildString { if (p.context.isNotBlank()) append(p.context).append("\n\n"); append(p.body) }
+        showLongText(p.title, text)
+    }
+
+    private fun showLongText(title: String, text: String) {
+        val scroll = ScrollView(this)
+        val content = tv(text, 19f, false).apply { setPadding(dp(28), dp(18), dp(28), dp(28)); setLineSpacing(0f, 1.18f) }
+        scroll.addView(content)
+        AlertDialog.Builder(this).setTitle(title).setView(scroll).setPositiveButton("Quay lại", null).show()
     }
 
     private fun changeMonth(delta: Long) {
