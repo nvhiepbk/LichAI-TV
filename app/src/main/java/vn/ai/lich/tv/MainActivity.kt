@@ -210,38 +210,114 @@ class MainActivity : Activity() {
     }
 
     private fun showEvents(title: String, events: List<TVEvent>) {
+        // A phone tab becomes a TV menu. If a day has several events, list every
+        // event first; selecting one opens its complete editorial article.
         if (events.size == 1) { showEvent(events.first()); return }
-        AlertDialog.Builder(this).setTitle(title).setItems(events.map { "${it.icon} ${it.title}".trim() }.toTypedArray()) { _, i -> showEvent(events[i]) }.setNegativeButton("Quay lại", null).show()
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(events.map { "${it.icon} ${it.title}".trim() }.toTypedArray()) { _, i -> showEvent(events[i]) }
+            .setNegativeButton("Quay lại", null).show()
     }
 
     private fun showEvent(e: TVEvent) {
         val text = buildString {
+            if (e.subtitle.isNotBlank()) append(e.subtitle.trim()).append("\n\n")
             if (e.summary.isNotBlank()) append(e.summary.trim()).append("\n\n")
-            if (e.meaning.isNotBlank()) append("Ý nghĩa\n").append(e.meaning.trim())
+            if (e.description.isNotBlank() && e.description.trim() != e.summary.trim()) append("TÓM LƯỢC\n").append(e.description.trim()).append("\n\n")
+            if (e.meaning.isNotBlank()) append("Ý NGHĨA\n").append(e.meaning.trim()).append("\n\n")
+            e.sections.forEach { section ->
+                append(section.icon).append(if(section.icon.isNotBlank()) " " else "")
+                append(section.title.uppercase()).append("\n")
+                append(section.content.trim()).append("\n\n")
+            }
+            if (e.tags.isNotEmpty()) append("CHỦ ĐỀ\n").append(e.tags.joinToString(" · ")).append("\n\n")
+            if (e.sources.isNotEmpty()) {
+                append("NGUỒN THAM KHẢO\n")
+                e.sources.forEach { src -> append("• ").append(src.title); if(src.url.isNotBlank()) append("\n  ").append(src.url); append("\n") }
+            }
         }.trim()
         showLongText("${e.icon} ${e.title}".trim(), text.ifBlank { "Thông tin sự kiện." })
     }
 
     private fun showRituals(date: LocalDate, lunar: LunarDate, rituals: List<TVRitual>) {
-        if (rituals.size == 1) { showRitual(rituals.first()); return }
-        AlertDialog.Builder(this).setTitle("Văn khấn").setItems(rituals.map { it.title }.toTypedArray()) { _, i -> showRitual(rituals[i]) }.setNegativeButton("Quay lại", null).show()
+        // Preserve each ritual as its own item when several rituals match a date.
+        if (rituals.size == 1) { showRitualMenu(rituals.first()); return }
+        AlertDialog.Builder(this)
+            .setTitle("Văn khấn")
+            .setItems(rituals.map { it.title }.toTypedArray()) { _, i -> showRitualMenu(rituals[i]) }
+            .setNegativeButton("Quay lại", null).show()
     }
 
-    private fun showRitual(r: TVRitual) {
-        if (r.prayers.size == 1) { showPrayer(r.prayers.first()); return }
-        AlertDialog.Builder(this).setTitle(r.title).setMessage(r.summary).setItems(r.prayers.map { it.title }.toTypedArray()) { _, i -> showPrayer(r.prayers[i]) }.setNegativeButton("Quay lại", null).show()
+    private fun showRitualMenu(r: TVRitual) {
+        // Phone ritual cards/tabs become a D-pad menu on TV: preparation first,
+        // then one menu item per prayer. The user chooses a prayer before reading.
+        val labels = mutableListOf<String>()
+        val actions = mutableListOf<() -> Unit>()
+        val g = r.guidance
+        if (r.summary.isNotBlank() || g.whenToUse.isNotBlank() || g.preparationNote.isNotBlank() || g.offerings.isNotEmpty() || g.notes.isNotEmpty()) {
+            labels += "🧺 Chuẩn bị & lễ vật"
+            actions += { showRitualPreparation(r) }
+        }
+        r.prayers.forEach { prayer ->
+            labels += "🙏 ${prayer.title}"
+            actions += { showPrayer(prayer) }
+        }
+        if (labels.isEmpty()) return
+        AlertDialog.Builder(this)
+            .setTitle(r.title)
+            .setItems(labels.toTypedArray()) { _, i -> actions[i].invoke() }
+            .setNegativeButton("Quay lại", null).show()
+    }
+
+    private fun showRitualPreparation(r: TVRitual) {
+        val g = r.guidance
+        val text = buildString {
+            if (r.summary.isNotBlank()) append(r.summary.trim()).append("\n\n")
+            if (g.whenToUse.isNotBlank()) append("KHI NÀO DÙNG\n").append(g.whenToUse.trim()).append("\n\n")
+            if (g.preparationNote.isNotBlank()) append("CHUẨN BỊ\n").append(g.preparationNote.trim()).append("\n\n")
+            if (g.offerings.isNotEmpty()) { append("LỄ VẬT GỢI Ý\n"); g.offerings.forEach { append("• ").append(it.trim()).append("\n") }; append("\n") }
+            if (g.notes.isNotEmpty()) { append("LƯU Ý\n"); g.notes.forEach { append("• ").append(it.trim()).append("\n") } }
+        }.trim()
+        showLongText("🧺 ${r.title}", text.ifBlank { "Không có yêu cầu chuẩn bị riêng." })
     }
 
     private fun showPrayer(p: TVPrayer) {
-        val text = buildString { if (p.context.isNotBlank()) append(p.context).append("\n\n"); append(p.body) }
+        val text = buildString { if (p.context.isNotBlank()) append(p.context.trim()).append("\n\n"); append(p.body.trim()) }
         showLongText(p.title, text)
     }
 
     private fun showLongText(title: String, text: String) {
-        val scroll = ScrollView(this)
-        val content = tv(text, 19f, false).apply { setPadding(dp(28), dp(18), dp(28), dp(28)); setLineSpacing(0f, 1.18f) }
+        val scroll = ScrollView(this).apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isVerticalScrollBarEnabled = true
+            descendantFocusability = android.view.ViewGroup.FOCUS_BEFORE_DESCENDANTS
+            setPadding(dp(8), 0, dp(8), 0)
+            setOnKeyListener { _, keyCode, event ->
+                if (event.action != android.view.KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                when (keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> { smoothScrollBy(0, height * 2 / 3); true }
+                    android.view.KeyEvent.KEYCODE_DPAD_UP -> { smoothScrollBy(0, -height * 2 / 3); true }
+                    android.view.KeyEvent.KEYCODE_PAGE_DOWN -> { pageScroll(android.view.View.FOCUS_DOWN); true }
+                    android.view.KeyEvent.KEYCODE_PAGE_UP -> { pageScroll(android.view.View.FOCUS_UP); true }
+                    else -> false
+                }
+            }
+        }
+        val content = tv(text, 19f, false).apply {
+            setPadding(dp(28), dp(18), dp(28), dp(40)); setLineSpacing(0f, 1.18f)
+        }
         scroll.addView(content)
-        AlertDialog.Builder(this).setTitle(title).setView(scroll).setPositiveButton("Quay lại", null).show()
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("$title  •  ↑↓ để cuộn")
+            .setView(scroll)
+            .setPositiveButton("Quay lại", null)
+            .create()
+        dialog.setOnShowListener {
+            // Give D-pad to the document instead of the dialog button.
+            scroll.post { scroll.requestFocus() }
+        }
+        dialog.show()
     }
 
     private fun changeMonth(delta: Long) {
