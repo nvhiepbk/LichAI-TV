@@ -2,6 +2,8 @@ package vn.ai.lich.tv
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
+import android.net.Uri
 import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
@@ -15,8 +17,22 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
 
 class MainActivity : Activity() {
+    private val updateManifestUrl = "https://raw.githubusercontent.com/nvhiepbk/LichAI-TV/main/tv-update.json"
+    private val defaultDownloadPage = "https://lich.ai.vn/download"
+
+    private data class UpdateInfo(
+        val versionCode: Int,
+        val versionName: String,
+        val title: String,
+        val notes: List<String>,
+        val downloaderCode: String,
+        val downloadPage: String
+    )
     private val vi = Locale("vi", "VN")
     private var selected = LocalDate.now()
     private var shownMonth = YearMonth.from(selected)
@@ -70,6 +86,7 @@ class MainActivity : Activity() {
         header.addView(button("‹") { changeMonth(-1) }, LinearLayout.LayoutParams(dp(64), dp(52)))
         header.addView(button("Hôm nay") { goToday() }, LinearLayout.LayoutParams(dp(132), dp(52)).apply { marginStart = dp(10) })
         header.addView(button("›") { changeMonth(1) }, LinearLayout.LayoutParams(dp(64), dp(52)).apply { marginStart = dp(10) })
+        header.addView(button("Cập nhật") { checkForUpdates(userInitiated = true) }, LinearLayout.LayoutParams(dp(132), dp(52)).apply { marginStart = dp(10) })
         right.addView(header)
         grid = GridLayout(this).apply { columnCount = 7; rowCount = 7; useDefaultMargins = false }
         right.addView(grid, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
@@ -362,5 +379,91 @@ class MainActivity : Activity() {
     private fun button(label: String, action: () -> Unit) = Button(this).apply {
         text = label; isFocusable = true; setOnClickListener { action() }
     }
+
+    private fun currentVersionCode(): Int = try {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt() else @Suppress("DEPRECATION") info.versionCode
+    } catch (_: Exception) { 0 }
+
+    private fun checkForUpdates(userInitiated: Boolean) {
+        val progress = if (userInitiated) AlertDialog.Builder(this)
+            .setTitle("Kiểm tra cập nhật")
+            .setMessage("Đang kiểm tra phiên bản Lịch AI TV mới…")
+            .setCancelable(false).create().also { it.show() } else null
+
+        worker.execute {
+            try {
+                val conn = (URL(updateManifestUrl).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 7000; readTimeout = 7000
+                    requestMethod = "GET"; setRequestProperty("Cache-Control", "no-cache")
+                }
+                val raw = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                conn.disconnect()
+                val j = JSONObject(raw)
+                val notesJson = j.optJSONArray("notes")
+                val notes = mutableListOf<String>()
+                if (notesJson != null) for (i in 0 until notesJson.length()) notes += notesJson.optString(i)
+                val info = UpdateInfo(
+                    j.optInt("versionCode", 0), j.optString("versionName", ""),
+                    j.optString("title", "Có phiên bản mới"), notes,
+                    j.optString("downloaderCode", ""),
+                    j.optString("downloadPage", defaultDownloadPage).ifBlank { defaultDownloadPage }
+                )
+                runOnUiThread {
+                    progress?.dismiss()
+                    if (info.versionCode > currentVersionCode()) showUpdateAvailable(info)
+                    else if (userInitiated) AlertDialog.Builder(this)
+                        .setTitle("Lịch AI TV đã mới nhất")
+                        .setMessage("Phiên bản đang cài hiện chưa có bản cập nhật mới.")
+                        .setPositiveButton("OK", null).show()
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    progress?.dismiss()
+                    if (userInitiated) AlertDialog.Builder(this)
+                        .setTitle("Chưa kiểm tra được cập nhật")
+                        .setMessage("TV chưa kết nối được máy chủ cập nhật. Hãy kiểm tra Internet rồi thử lại.")
+                        .setPositiveButton("OK", null).show()
+                }
+            }
+        }
+    }
+
+    private fun showUpdateAvailable(info: UpdateInfo) {
+        val changes = if (info.notes.isEmpty()) "Có phiên bản Lịch AI TV mới."
+        else info.notes.joinToString("\n") { "• $it" }
+        AlertDialog.Builder(this)
+            .setTitle("${info.title} · ${info.versionName}")
+            .setMessage("TÍNH NĂNG / THAY ĐỔI\n\n$changes")
+            .setPositiveButton("Tiếp tục cập nhật") { _, _ -> showUpdateInstructions(info) }
+            .setNegativeButton("Để sau", null)
+            .show()
+    }
+
+    private fun showUpdateInstructions(info: UpdateInfo) {
+        val codeText = if (info.downloaderCode.isBlank())
+            "Mã Downloader đang được cập nhật trên trang tải." else info.downloaderCode
+        val message = """
+            CÁCH 1 · DOWNLOADER
+            1. Mở ứng dụng Downloader trên Android TV.
+            2. Nhập mã: $codeText
+            3. Chọn Go → tải APK → Install để cài đè.
+
+            CÁCH 2 · TRANG TẢI LỊCH AI
+            Mở ${info.downloadPage}
+            Trang tải luôn hiển thị link APK TV và mã Downloader hiện hành.
+
+            Dữ liệu và cài đặt của Lịch AI TV được giữ lại khi cài đè đúng gói chính thức.
+        """.trimIndent()
+        AlertDialog.Builder(this)
+            .setTitle("Cập nhật Lịch AI TV")
+            .setMessage(message)
+            .setPositiveButton("Mở trang tải") { _, _ ->
+                try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadPage))) } catch (_: Exception) {}
+            }
+            .setNegativeButton("Đóng", null)
+            .show()
+    }
+
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 }
